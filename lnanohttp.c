@@ -165,7 +165,7 @@ static u8 cnx_sock_rd_wait(void)
 	struct timeval tv;
 	sl r;
 
-	fd_set[ul_idx] = (1 << ul_shift); /* was zero-ed in global_init */
+	fd_set[ul_idx] = (1UL << ul_shift); /* was zero-ed in global_init */
 
 	tv.sec = CNX_WAIT_TIMEOUT;
 	tv.usec = 0;
@@ -216,7 +216,7 @@ static u8 http_method_rd(void)
 			break;
 
 		bytes_rd_n = cnx_sock_rd();
-		if (bytes_rd_n == CNX_SOCK_RD_FAILURE)
+		if (bytes_rd_n == CNX_SOCK_RD_FAILURE || bytes_rd_n == 0)
 			break;
 
 		page_bytes_rd_n += bytes_rd_n;
@@ -254,7 +254,7 @@ static u8 http_rd_at_least_one_byte(void)
 			break;
 
 		bytes_rd_n = cnx_sock_rd();
-		if (bytes_rd_n == CNX_SOCK_RD_FAILURE)
+		if (bytes_rd_n == CNX_SOCK_RD_FAILURE || bytes_rd_n == 0)
 			break;
 
 		if (bytes_rd_n != 0) {
@@ -336,7 +336,7 @@ static u8 cnx_sock_send_wait(void)
 	struct timeval tv;
 	sl r;
 
-	fd_set[ul_idx] = (1 << ul_shift); /* was zero-ed in global_init */
+	fd_set[ul_idx] = (1UL << ul_shift); /* was zero-ed in global_init */
 
 	tv.sec = CNX_WAIT_TIMEOUT;
 	tv.usec = 0;
@@ -507,7 +507,7 @@ static void cnx_sock_fd_set_params(void)
 {
 	si ul_bits_n;
 
-	ul_bits_n = sizeof(ul) << 3;	/* mul 8 bits */
+	ul_bits_n = 8 * sizeof(ul);
 
 	cnx_sock_fd_set_ul_idx = cnx_sock / ul_bits_n;
 	cnx_sock_fd_ul_shift = cnx_sock % ul_bits_n;
