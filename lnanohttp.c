@@ -50,7 +50,7 @@
    the file paths and the content types.*/
 #define RESP_HDR_FMT (u8*)"\
 HTTP/1.1 200 \r\n\
-content-lenght:%u\r\n\r\n"
+content-length:%u\r\n\r\n"
 /******************************************************************************/
 
 #define SIGBIT(sig) (1<<(sig-1))
