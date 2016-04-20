@@ -1,0 +1,24 @@
+This is another _really_ minimal ISO C90-ish http server for linux:
+ - single-threaded (1 connection = 1 request)
+ - source configured (look for the configuration section in the code)
+ - epoll-ed
+ - signalfd-ed (i.e. synchronous)
+ - direct syscalls (no libc)
+
+Only HEAD and GET methods.
+
+Rely on user agent content type detection.
+
+Will chroot in the configured path once started.
+
+Don't forget you need to give root priviledges to the server in order to listen
+on port 80.
+
+Look in ulinux/patterns/network_server if you want to ramp up this server with
+cloning, etc.
+
+--------
+
+I want a generic ELF data table builder.
+I'm stuck with the ISO C99 data table builder.
+:)

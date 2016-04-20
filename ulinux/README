@@ -1,0 +1,4 @@
+*DO* really check the pattern dir. Those are supposed to be building blocks for
+your applications.
+
+String pointers are u8* because void pointers are kind of out of place.

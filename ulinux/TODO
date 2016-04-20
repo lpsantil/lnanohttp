@@ -1,0 +1,2 @@
+Move the code to ISO C90 declaration (beginning of a block).
+Cleanup the patterns (makefile to sh scripts, ISO C90-ish...)
