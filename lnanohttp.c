@@ -39,18 +39,21 @@
 /* 32 bits value for the IPv4, can be INADDR_ANY */
 #define LISTENING_IPV4 INADDR_ANY
 /* the chroot patch used upon start */
-#define CHROOT_PATH "/home/sylvain/wip/bn/chroot"
+#define CHROOT_PATH "/root/http/chroot"
 /* time out for a socket read/write, in seconds. 4 secs is huge */
 #define CNX_WAIT_TIMEOUT 4
 /* default file */
 #define DEFAULT_FILE (u8*)"/index.xhtml"
+#define DEFAULT_FILE_MIME (u8*)"/index.xhtml.mime"
 
-/* XXX:Rely on user agent content type detection.
-   For more content type accuracy, the next step would be a mapping between
-   the file paths and the content types.*/
 #define RESP_HDR_FMT (u8*)"\
 HTTP/1.1 200 \r\n\
 content-length:%u\r\n\r\n"
+
+#define RESP_HDR_CONTENT_TYPE_FMT (u8*)"\
+HTTP/1.1 200 \r\n\
+content-length:%u\r\n\
+content-type:%s\r\n\r\n"
 /******************************************************************************/
 
 #define SIGBIT(sig) (1<<(sig-1))
@@ -85,12 +88,14 @@ static ul page_bytes_rd_n;	/* keep an eye on how much was read */
 
 static u8 *method_target_space;
 static u8 *target_start;
-static u8 *target_end;
+static u8 *target_end;		/* point the space char right after */
 /*----------------------------------------------------------------------------*/
 
 /*----------------------------------------------------------------------------*/
+static u8 target_file_is_default;
 static si target_file_fd;
 static ul target_file_sz;
+static u8 target_file_mime[255 + 1];	/* actually the content-type */
 /*----------------------------------------------------------------------------*/
 
 /*----------------------------------------------------------------------------*/
@@ -373,7 +378,14 @@ static sl cnx_sock_send_resp_hdr(void)
 
 static u8 http_resp_hdr_send(void)
 {
-	resp_hdr_sz = (sl)snprintf(page, PAGE_SZ, RESP_HDR_FMT, target_file_sz);
+	if (target_file_mime[0] == 0)
+		resp_hdr_sz = (sl)snprintf(page, PAGE_SZ, RESP_HDR_FMT,
+								target_file_sz);
+	else
+		resp_hdr_sz = (sl)snprintf(page, PAGE_SZ,
+						RESP_HDR_CONTENT_TYPE_FMT,
+						target_file_sz,
+						&target_file_mime[0]);
 
 	if (resp_hdr_sz == 0)
 		return HTTP_CLOSE;
@@ -437,6 +449,91 @@ static u8 http_sendfile(void)
 	return HTTP_CLOSE;
 }
 
+static u8 *http_target_mime_file_path(void)
+{
+	/* We have room in the page. target_end has not be modified */
+	target_end[0] = '.';
+	target_end[1] = 'm';
+	target_end[2] = 'i';
+	target_end[3] = 'm';
+	target_end[4] = 'e';
+	target_end[5] = 0;
+	return target_start;
+}
+
+static void http_target_mime_file(void)
+{
+	u8 *mime_file_path;
+	sl r;
+	si mime_file_fd;
+	struct stat mime_file_stat;
+	ul bytes_to_read_n;
+
+	if (target_file_is_default)
+		mime_file_path = DEFAULT_FILE_MIME;
+	else
+		mime_file_path = http_target_mime_file_path();
+
+	/*--------------------------------------------------------------------*/
+	/* open */
+	loop {
+		r = open(mime_file_path, O_RDONLY, 0);
+		if (r != -EINTR)
+			break;
+	}
+	if (ISERR(r))
+		goto direct_exit;
+
+	mime_file_fd = (si)r;
+	/*--------------------------------------------------------------------*/
+
+	/*--------------------------------------------------------------------*/
+	/* get size */
+	memset(&mime_file_stat, 0, sizeof(mime_file_stat));
+
+	r = fstat(mime_file_fd, &mime_file_stat);
+	if (ISERR(r))
+		goto direct_exit;
+
+	/* mime_file_stat.sz */
+	/*--------------------------------------------------------------------*/
+
+	/*--------------------------------------------------------------------*/
+	/* check size */
+	if ((mime_file_stat.sz + 1) > sizeof(target_file_mime)) {
+		r = -1;
+		goto direct_exit;
+	}
+	bytes_to_read_n = mime_file_stat.sz;
+	/*--------------------------------------------------------------------*/
+
+	/*--------------------------------------------------------------------*/
+	/* read it */
+	loop {
+		r = read(mime_file_fd, &target_file_mime[0] + mime_file_stat.sz
+					- bytes_to_read_n, bytes_to_read_n);
+		if (r != -EINTR) {
+			if (ISERR(r))
+				goto close_mime_file;
+
+			bytes_to_read_n -= r;
+
+			if (bytes_to_read_n == 0)
+				break;
+		}
+	}
+	/*--------------------------------------------------------------------*/
+
+	target_file_mime[mime_file_stat.sz] = 0;
+
+close_mime_file:
+	close(mime_file_fd);
+
+direct_exit:
+	if (ISERR(r))
+		target_file_mime[0] = 0;	/* no mime */
+}
+
 /*---------------------------------------------------------------------------*/
 
 static void cnx_handle(void)
@@ -462,11 +559,17 @@ static void cnx_handle(void)
 	if (r == HTTP_CLOSE)
 		goto direct_exit;
 
+	/* now we check we have room for the ".mime" extension */
+	if ((target_end - 1 + sizeof(".mime")) >= (page + PAGE_SZ))
+		goto direct_exit;
+
 	/* target is exactly "/" or prepare the path */
 	if ((target_end - (method_target_space + 1)) == 1
 					&& method_target_space[1] == '/') {
+		target_file_is_default = 1;
 		target_start = DEFAULT_FILE;
 	} else {
+		target_file_is_default = 0;
 		target_start = method_target_space + 1;
 		*target_end = 0;
 	}
@@ -478,6 +581,8 @@ static void cnx_handle(void)
 	r = http_target_file_sz_get();
 	if (r == HTTP_CLOSE)
 		goto close_target_file;
+
+	http_target_mime_file();
 
 	r = http_resp_hdr_send();
 	if (r == HTTP_CLOSE)
