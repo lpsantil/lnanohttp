@@ -8,9 +8,7 @@ This is another _really_ minimal ISO C90-ish http server for linux:
 Only HEAD and GET methods.
 
 To map a content-type to a file "A", add a file "A.mime" containing the
-content-type.  You don't need to add a charset to utf-8 xml target since the
-http default iso8859-1 allows the browser to parse the xml first element were
-utf-8 encoding will be defined.
+content-type.
 
 Will chroot in the configured path once started.
 
