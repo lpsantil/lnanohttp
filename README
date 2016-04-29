@@ -9,6 +9,8 @@ Only HEAD and GET methods.
 
 To map a content-type to a file "A", add a file "A.mime" containing the
 content-type.
+**BIG FAT WARNING** vim editor will add a spurious 0x0a '/n' line feed at the
+end of the mime file.
 
 Will chroot in the configured path once started.
 
