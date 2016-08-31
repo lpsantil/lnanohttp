@@ -29,7 +29,7 @@ So Feb  1 16:51:32 CET 2004 Juergen Quade <quade@hsnr.de>
 #include <ulinux/mmap.h>
 #include <ulinux/utils/div.h>
 #include <ulinux/utils/endian.h>
-#include <ulinux/ipv6.h>
+#include <ulinux/socket/in6.h>
 #include <ulinux/utils/ipv6.h>
 #include <ulinux/utils/mem.h>
 #include <ulinux/utils/ascii/ascii.h>

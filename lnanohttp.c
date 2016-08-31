@@ -7,6 +7,11 @@
 /*----------------------------------------------------------------------------*/
 
 /*----------------------------------------------------------------------------*/
+/* :( */
+/* #define IPV4 1 */
+/*----------------------------------------------------------------------------*/
+
+/*----------------------------------------------------------------------------*/
 /* ulinux stuff */
 #include <ulinux/compiler_types.h>
 #include <ulinux/types.h>
@@ -14,7 +19,11 @@
 
 #include <ulinux/file.h>
 #include <ulinux/socket/socket.h>
+#ifdef IPV4
 #include <ulinux/socket/in.h>
+#else
+#include <ulinux/socket/in6.h>
+#endif
 #include <ulinux/signal/signal.h>
 #include <ulinux/error.h>
 #include <ulinux/epoll.h>
@@ -33,11 +42,27 @@
 
 /******************************************************************************/
 /* configuration */
+
 /* 16 bits value for the port (below 1024, must be root, that you must be for
    chroot anyway) */
 #define LISTENING_PORT 80
-/* 32 bits value for the IPv4, can be INADDR_ANY */
+
+#ifdef IPV4
+/* 32 bits value for the IPv4 address, can be INADDR_ANY */
 #define LISTENING_IPV4 INADDR_ANY
+#else
+static struct ulinux_in6_addr listening_ipv6;
+/* 128 bits value for the IPv6 address, is "IN6ADDR_ANY" if all 0 */
+static void listening_ipv6_init(void)
+{
+	/* see ulinux/socket/in6.h for u16 or u8 access to the address */
+	listening_ipv6.s6_addr32[0] = 0;
+	listening_ipv6.s6_addr32[1] = 0;
+	listening_ipv6.s6_addr32[2] = 0;
+	listening_ipv6.s6_addr32[3] = 0;
+}
+#endif
+
 /* the chroot patch used upon start */
 #define CHROOT_PATH "/root/http/chroot"
 /* time out for a socket read/write, in seconds. 4 secs is huge */
@@ -60,7 +85,11 @@ content-type:%s\r\n\r\n"
 
 /*----------------------------------------------------------------------------*/
 /* sockets stuff */
+#ifdef IPV4
 static struct sockaddr_in srv_addr;
+#else
+static struct sockaddr_in6 srv_addr;
+#endif
 static si srv_sock;	/* the main listening socket */
 static si cnx_sock;	/* a cnx socket from accept */
 
@@ -177,6 +206,9 @@ static u8 cnx_sock_rd_wait(void)
 
 	loop {	
 		r = select(cnx_sock + 1, &cnx_sock_fd_set[0], 0, 0, &tv);
+		/* XXX: to address some concerns: by design for the sake of
+		   simplicity we ignore handled signals here. May do state
+		   management around epoll_wait someday. */
 		if (r != -EINTR)
 			break;
 	}
@@ -348,6 +380,9 @@ static u8 cnx_sock_send_wait(void)
 
 	loop {	
 		r = select(cnx_sock + 1, 0, &cnx_sock_fd_set[0], 0, &tv);
+		/* XXX: to address some concerns: by design for the sake of
+		   simplicity we ignore handled signals here. May do state
+		   management around epoll_wait someday. */
 		if (r != -EINTR)
 			break;
 	}
@@ -622,7 +657,11 @@ static void cnxs_consume(void)
 {
 	loop {
 		sl r;
+#ifdef IPV6
 		struct sockaddr_in peer;
+#else
+		struct sockaddr_in6 peer;
+#endif
 		sl peer_len;
 
 		peer_len = sizeof(peer);
@@ -722,8 +761,11 @@ static void srv_sock_create(void)
 	sl bool_true;
 	sl r;
 
-	/* TCP on IPv4... erk! */
-	r = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+#ifdef IPV4
+	r = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+#else
+	r = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK, 0);
+#endif
 	if (ISERR(r))
 		exit(SRV_SOCK_CREATE_FAILURE);
 	srv_sock = (si)r;
@@ -801,11 +843,20 @@ static void setup(void)
 
 static void globals_init(void)
 {
+#ifdef IPV4
 	srv_addr.sin_family = AF_INET;
 
 	/* big endian port */
 	srv_addr.sin_port = cpu2be16(LISTENING_PORT);
 	srv_addr.sin_addr.s_addr = cpu2be32(LISTENING_IPV4);
+#else
+	srv_addr.sin6_family = AF_INET6;
+
+	/* big endian port */
+	srv_addr.sin6_port = cpu2be16(LISTENING_PORT);
+	listening_ipv6_init();
+	srv_addr.sin6_addr = listening_ipv6;	/* C compiler block copy */
+#endif
 
 	srv_sock = -1;	/* our listening socket */
 	cnx_sock = -1;	/* a cnx socket from accept */

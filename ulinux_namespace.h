@@ -77,13 +77,17 @@
 #define epoll_wait(a,b,c,d) ulinux_sysc(epoll_wait,4,a,b,c,d)
 /*----------------------------------------------------------------------------*/
 #define AF_INET ULINUX_AF_INET
-#define PF_INET ULINUX_PF_INET
+#define AF_INET6 ULINUX_AF_INET6
 #define INADDR_ANY ULINUX_INADDR_ANY
 #define SOL_SOCKET ULINUX_SOL_SOCKET
 #define SO_REUSEADDR ULINUX_SO_REUSEADDR
 #define SOCK_STREAM ULINUX_SOCK_STREAM
 #define SOCK_NONBLOCK ULINUX_SOCK_NONBLOCK
+#ifdef IPV6
 #define sockaddr_in ulinux_sockaddr_in
+#else
+#define sockaddr_in6 ulinux_sockaddr_in6
+#endif
 #ifdef __i386__
 static sl socket(sl a, sl b, sl c)
 {
