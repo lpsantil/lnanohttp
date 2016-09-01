@@ -657,7 +657,7 @@ static void cnxs_consume(void)
 {
 	loop {
 		sl r;
-#ifdef IPV6
+#ifdef IPV4
 		struct sockaddr_in peer;
 #else
 		struct sockaddr_in6 peer;
